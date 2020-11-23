@@ -3,14 +3,10 @@
 
 floger::pg is the Previous Generation Firewall LOG viewER powered by Human correlation
 
-in other words, floger pg is a log viewer with the objective to be uses
-full for system and security administrators.
-the  main philosophy of floger is not to avoid doing what needs to be  
-done, but do it only once!
+in other words, floger pg is a log viewer with the objective to be useful for system and security administrators.
+the  main philosophy of floger is not to avoid doing what needs to be  done, but do it only once!
 
-With floger you can apply filters to your firewall logs and aggregate in a
-tree, adding information of the number of event by group, and apply
-quick filters with a double click in the branches of the tree
+With floger you can apply filters to your firewall logs and aggregate in a tree, adding information of the number of event by group, and apply quick filters with a double click in the branches of the tree
 
 floger is in the preliminary version 0.1.0 but new features are coming
 
@@ -27,9 +23,7 @@ please, send me a example of your logs to define the parser  and be included fut
 
 ## Table filter
 
-the more basic functionality of floger is to apply a filter based in
-a regex expression to the main table of events, this filter is a coma separated
-list of table fields ':' and regex:
+the more basic functionality of floger is to apply a filter based in a regex expression to the main table of events, this filter is a coma separated list of table fields ':' and regex:
 
 ``` action: DENY, rule: 6, dst: 1.1.2.2, dpt: 22 ```
 
@@ -41,10 +35,7 @@ currently, only <and> filters are supported but a more powerful filtering langua
   
 ## Tree groups
 
-The main difference of floger with other log analyzers is the possibility 
-of aggregate all the event in a tree, grouping by the different table labels,
-to do it, you only need to define the label order in the line-edit in the top
-of the tree, with a list separated by comas:
+The main difference of floger with other log analyzers is the possibility of aggregate all the event in a tree, grouping by the different table labels, to do it, you only need to define the label order in the line-edit in the top of the tree, with a list separated by comas:
 
 ``` action,  rule,  dst, dpt,  rule ```
 
@@ -78,11 +69,8 @@ this is a json file, and can be edit, but floger will write to it to save the st
 
 ## You can help 
 
-If you are using other firewall logs, and can send me a sample to analyze, I will try to include in future versions of floger.
+If you are using other firewall logs, and can send me a sample to analyze, I will try to include in future versions of floger. 
 You write your own regular expressions and added to the floger, please send me the patch to add to future versions.
 Would you like to include some functionality, please send me your idea, your patch, ... to be analyzed or included in floger, 
 any help are welcome!!! 
-
-
-
 
