@@ -1,7 +1,7 @@
 
 # floger::pg
 
-floger::ng is the Previous Generation Firewall LOG viewER powered by Human correlation
+floger::pg is the Previous Generation Firewall LOG viewER powered by Human correlation
 
 in other words, floger pg is a log viewer with the objective to be uses
 full for system and security administrators.
