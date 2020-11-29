@@ -1,0 +1,756 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+import sys
+from PyQt5 import QtWidgets as qtw
+from PyQt5 import QtGui as qtg
+from PyQt5 import QtCore as qtc
+import csv
+import os
+import argparse
+import re
+import json
+
+
+class LogTree():
+    def __init__(self, headers, order):
+        self.treeData= { 'childs': {},    #{ 'name': {   }, 'other_name': { }  },
+                'lcount': 0,
+                'group': 'root'
+                }
+        self.headers = []
+        self.order =[]
+        self.headers_idx ={}
+        self.headers = headers
+        self.order = order
+        for tag in self.order:
+            self.headers_idx[tag] = self.headers.index(tag)
+        if DEBUG: print ("[+] DEBUG precessed headers_idx:" , self.headers_idx)
+
+
+    def setOrder(self, order):
+        self.order = order
+
+    def add_log(self, log ):
+        cur_node = self.treeData
+        cur_node['lcount'] += 1
+        for k  in self.headers_idx:
+            i=self.headers_idx[k]
+            if cur_node['childs'].get(log[i]) is not None:
+                cur_node['childs'][log[i]]['lcount'] += 1
+                cur_node=cur_node['childs'][log[i]]
+            else:
+                cur_node['childs'][log[i]]= { 'childs': {}, 'lcount': 1, 'group': k }
+                cur_node=cur_node['childs'][log[i]]
+
+    def populate(self, tree_rootnode):
+        self._populate(tree_rootnode, self.treeData)
+
+    def _populate(self, tree_rootnode, cur_node):
+        for k in cur_node['childs']:
+            tmpitem=StandardItem( k + " [" + str(cur_node['childs'][k]['lcount']) + "]" , cur_node['childs'][k]['group'] )
+            tree_rootnode.appendRow(tmpitem)
+            self._populate(tmpitem, cur_node['childs'][k])
+
+
+class StandardItem(qtg.QStandardItem):
+    childs = []
+    eventcount = []
+    group_idx = 0
+    group_name = ''
+
+    def __init__(self, txt, group_name):
+        super().__init__()
+        self.setEditable(False)
+        self.setText(txt)
+        self.group_name = group_name
+
+
+class LogTableModel ( qtc.QAbstractTableModel):
+
+    def __init__(self, log_regex, headers, mapped_headers):
+        super().__init__()
+        self.logs = []
+        self._lregex = re.compile(log_regex)
+        self.headers = headers
+        self.mapped_headers = mapped_headers
+        self.dataMapper= None
+        self.mapped = False
+
+    def setDataMaper(self, dataMapper):
+        self.dataMapper=dataMapper
+
+    def rowCount(self, parent) -> int:
+        return len( self.logs)
+
+    def columnCount(self, parent) -> int:
+        return len ( self.headers)
+
+    def data(self, index , role ) :
+
+        data = self.logs[index.row()][index.column()]
+        if role == qtc.Qt.DisplayRole:
+            return data
+        if role == qtc.Qt.ForegroundRole:
+            if data  in [ 'DENY', 'REJECT', 'drop', 'deny','reject']:
+                return qtg.QBrush( qtc.Qt.red)
+            elif data in [ 'ACCEPT', 'accept']:
+                return qtg.QBrush(qtc.Qt.green)
+            else:
+                return qtg.QBrush(qtc.Qt.blue)
+        if role == qtc.Qt.ToolTipRole:
+            if self.dataMapper is not None:
+                return self.dataMapper.getValue( data )
+
+    def saveAsCSV(self, filename):
+        try:
+            with open(filename[0], 'w', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(self.headers)
+                writer.writerows(self.logs)
+            return True
+        except IOError:
+            errormsg = qtw.QMessageBox()
+            errormsg.setIcon(qtw.QMessageBox.Warning)
+            errormsg.setWindowTitle('Error')
+            errormsg.setText("I can not write the file: {}".format(filepath))
+            errormsg.show()
+            return False
+
+    def headerData(self, section: int, orientation, role: int ) :
+        if  orientation == qtc.Qt.Horizontal and role == qtc.Qt.DisplayRole:
+            return self.headers[section]
+        else:
+            return super().headerData(section,orientation,role)
+    def sort(self, column: int, order):
+        self.layoutAboutToBeChanged.emit()
+        self.logs.sort(key=lambda x: x[column])
+        if order == qtc.Qt.DescendingOrder:
+            self.logs.reverse()
+        self.layoutChanged.emit()
+
+    def flags(self, index):
+        return super().flags(index)
+
+    def clean(self):
+        self.logs=[]
+
+    def append(self, row):
+        self.beginInsertRows(qtc.QModelIndex(), len(self.logs)-1,len(self.logs)-1 )
+        self.logs.append(row)
+        self.endInsertRows()
+
+    def setData(self, logs):
+        self.beginInsertRows(qtc.QModelIndex(), 0, 0 )
+        self.logs=logs
+        self.endInsertRows()
+
+    def addLine(self, line):
+        logarry = []
+        match = self._lregex.search(line)
+        if match is None:
+            raise Exception( "unknown log line format [{}]".format(line.rstrip()))
+        for k in self.headers:
+            if re.match('^m_', k):
+                continue
+            if match.group(k) is None:
+                logarry.append('')
+            else:
+                logarry.append(match.group(k))
+
+            if k in self.mapped_headers:
+                logarry.append(self.dataMapper.getValue(match.group(k)))
+        self.logs.append(logarry)
+
+
+class filterProxyModel ( qtc.QSortFilterProxyModel ):
+    filters={}
+    def __init__(self):
+        super().__init__()
+        self._filters={}
+
+    def clear_filters(self):
+        self._filters={}
+        self.invalidateFilter()
+
+    def add_filter(self,col, filter):
+        self._filters[col] = filter
+        self.invalidateFilter()
+
+    def filterAcceptsRow(self, source_row: int, source_parent):
+        for key, regex in self._filters.items():
+            index = self.sourceModel().index(source_row, key, source_parent)
+
+            if index.isValid():
+                text = self.sourceModel().data(index,qtc.Qt.DisplayRole )
+                if not regex.indexIn(text) > -1:
+                    return False
+        return True
+
+
+class MainWindow(qtw.QMainWindow):
+    log_formats = {
+        'iptables-fwb': '^(?P<month>\S+)\s+(?P<day>\S+)\s+(?P<time>\S+)\s(?P<host>\S+)\s+(?P<process>[^:\[\]]+)(\[(?P<pid>\S+)\])?:(\s(\[(?P<ktime>\d+\.\d+)\]))?(\s+RULE\s+(?P<rule>\d+)\s+--\s+(?P<action>\w+))?(\s+IN=(?P<in>\S*))?(\s+OUT=(?P<out>\S*))(\s+MAC=(?P<mac>\S*))?(\s+SRC=(?P<src>\S+))?(\s+DST=(?P<dst>\S+))?(\s+LEN=(?P<len>\d+))?(\s+TOS=(?P<tos>\S+))?(\s+PREC=(?P<prec>\S+))?(\s+TTL=(?P<ttl>\d+))?(\s+ID=(?P<id>\d+))?(\s+(?P<frag>\S+))?(\s+PROTO=(?P<proto>\S+))?(\s+SPT=(?P<spt>\d+))?(\s+DPT=(?P<dpt>\d+))?(\s+LEN=(?P<len2>\d+))?(\s+WINDOW=(?P<window>\d+))?(\s+RES=(?P<res>\S+))?(\s+(?P<flags>\w+))?(\s+URGP=(?P<urgp>\d+))?',
+        'sophos-utm9': '(?P<date>\S+)\s+(?P<fwsrc>\S+)\s+(?P<process>\S+)\[(?P<pid>\d+)\]:\s+id=\"(?P<id>\d+)\"\s+severity=\"(?P<severity>\S+)\"\s+sys=\"(?P<sys>\S+)\"\s+sub=\"(?P<sub>\S+)\"\s+name=\"(?P<name>.*)\"\s+action=\"(?P<action>\S+)\"\s+fwrule=\"(?P<fwrule>\d+)\"\s+initf=\"(?P<initf>\S+)\"\s+(outitf=\"(?P<outitf>\S+)\"\s+)?srcmac=\"(?P<srcmac>\S+)\"\s+dstmac=\"(?P<dstmac>\S+)\"\s+srcip=\"(?P<srcip>\S+)\"\s+dstip=\"(?P<dstip>\S+)\"\s+proto=\"(?P<proto>\S+)\"\s+length=\"(?P<length>\S+)\"\s+tos=\"(?P<tos>\S+)\"\s+prec=\"(?P<prec>\S+)\"\s+ttl=\"(?P<ttl>\S+)\"\s+srcport=\"(?P<srcport>\S+)\"\s+dstport=\"(?P<dstport>\S+)\"(\s+tcpflags=\"(?P<tcpflags>\S+)\")?',
+        'syslog': '^(?P<month>\S+)\s+(?P<day>\S+)\s+(?P<time>\S+)\s(?P<host>\S+)\s+(?P<process>[^:\[\]]+)(\[(?P<pid>\S+)\])?:\s+(?P<msg>.*)$',
+        'csv': 'csv-parser'
+    }
+    log_headers = {
+        'iptables-fwb': [ 'month', 'day', 'time', 'host', 'process', 'pid', 'ktime', 'rule', 'action', 'in', 'out',
+                          'mac', 'src', 'm_src', 'dst', 'm_dst', 'len', 'tos', 'prec', 'ttl', 'id', 'frag', 'proto',
+                          'spt', 'dpt', 'window', 'res', 'flags', 'urgp', 'len2'],
+        'sophos-utm9': ['date', 'fwsrc', 'severity', 'action', 'fwrule', 'srcip', 'm_srcip', 'dstip','m_dstip',
+                   'proto', 'srcport', 'dstport', 'initf', 'sys', 'sub', 'name', 'srcmac', 'dstmac',
+                   'length', 'tos', 'prec', 'ttl', 'tcpflags', 'process', 'pid', 'id'],
+        'syslog': ['month', 'day', 'time', 'host', 'process', 'pid', 'msg'],
+        'csv': ['csv']
+                   }
+    mapped_headers = { 'iptables-fwb': ['src', 'dst'],
+                       'sophos-utm9': ['srcip', 'dstip'],
+                       'syslog':  [],
+                       'csv': []}
+    default_table_filter = { 'iptables-fwb': 'action: , src: , dst: , dpt:, rule:, proto:',
+                             'sophos-utm9': 'srcip: , dstip: , proto: , dstport: , action: ',
+                             'syslog': 'month: , day: , time: , host: , process: , pid: , msg:',
+                             'csv': 'Write: , Your: , Filter: '
+    }
+    default_tree_order = {
+        'iptables-fwb': 'action, dpt, src, dst, rule',
+        'sophos-utm9': 'srcip, dstip, proto, dstport',
+        'syslog': 'host, month, day, process, pid',
+        'csv': 'Write, your, order'
+    }
+    config_file_path = os.path.join( os.path.expanduser("~"), '.config' , 'floger', 'floger.conf')
+
+    def __init__(self):
+        super().__init__()
+        self._model = None
+        self._view_table = None
+        self._model_tree = None
+        self.headers = None
+        self.format= None
+        self.dataMapper = DataMapper()
+
+        self.config = FlogerConfig(self.config_file_path)
+
+        if self.config.getKey('mapper_file_path') is not None:
+            self.dataMapper = DataMapper(self.config.getKey('mapper_file_path'))
+
+        # Tree
+        self._view_tree = qtw.QTreeView()
+
+        self._view_tree.setSelectionMode(qtw.QAbstractItemView.ExtendedSelection)
+
+        self._view_tree.setHeaderHidden(True)
+        self._model_tree = qtg.QStandardItemModel()
+        self.tree_rootnode = self._model_tree.invisibleRootItem()
+
+
+        self.statusBar().showMessage('Your Saw is Ready, cut the logs!')
+        self.setGeometry(100, 100, 800, 600)
+        self.setWindowTitle('floger::pg the Previous Generation FireWall LOG viewER powered by Human correlation')
+        self.setWindowIcon(qtg.QIcon(  os.path.join( appimages, 'floger.png')))
+
+        #toolbar
+        self.toolbar = qtw.QToolBar("floger toolbar")
+        self.addToolBar(self.toolbar)
+
+        # Menu bar
+        exitAction = qtw.QAction(self.style().standardIcon(getattr(qtw.QStyle,'SP_DialogCloseButton')), '&Exit', self)
+        exitAction.setShortcut('Ctrl+Q')
+        exitAction.setStatusTip('Exit application')
+        exitAction.triggered.connect(qtw.qApp.quit)
+        self.toolbar.addAction(exitAction)
+
+        openFileAction = qtw.QAction( self.style().standardIcon(getattr(qtw.QStyle,'SP_DialogOpenButton')), '&Open File', self)
+        openFileAction.setShortcut('Ctrl+O')
+        openFileAction.setStatusTip('open a new log file')
+        openFileAction.triggered.connect(self.openFile)
+        self.toolbar.addAction(openFileAction)
+
+        openMapperAction = qtw.QAction( self.style().standardIcon(getattr(qtw.QStyle,'SP_FileDialogDetailedView')), 'Open csv &Mapper ', self)
+        openMapperAction.setShortcut('Ctrl+M')
+        openMapperAction.setStatusTip('open a new CSV Mapper file: key;value')
+        openMapperAction.triggered.connect(self.openMapper)
+        self.toolbar.addAction(openMapperAction)
+
+        saveAsCSVAction = qtw.QAction( self.style().standardIcon(getattr(qtw.QStyle,'SP_DialogSaveButton')), '&Save as CSV ', self)
+        saveAsCSVAction.setShortcut('Ctrl+S')
+        saveAsCSVAction.setStatusTip('Save all events as CSV file')
+        saveAsCSVAction.triggered.connect(self.saveAsCSV)
+        self.toolbar.addAction(saveAsCSVAction)
+
+
+
+        recentFilesMenu = qtw.QMenu( '&Recent Log Files ', self)
+        recentFilesMenu.setIcon(self.style().standardIcon(getattr(qtw.QStyle,'SP_FileIcon')) )
+        recentFilesMenu.setStatusTip('Open a recent file')
+
+        for logfileformat in self.config.getKey('last_files'):
+            tmpFileAction = qtw.QAction( self.style().standardIcon(getattr(qtw.QStyle,'SP_FileIcon')), logfileformat[0], self)
+            tmpFileAction.setStatusTip("open the file {} with format {}".format(logfileformat[0],logfileformat[1]))
+            tmpFileAction.triggered.connect(lambda ignore=None, lfile=logfileformat[0], lformat=logfileformat[1]: self.openFile(lfile, lformat ))
+            recentFilesMenu.addAction(tmpFileAction)
+
+        aboutAction = qtw.QAction(self.style().standardIcon(getattr(qtw.QStyle,'SP_DialogHelpButton')), "&About", self)
+        aboutAction.triggered.connect(self.showAbout)
+
+        menubar = self.menuBar()
+
+        fileMenu = menubar.addMenu('&File')
+        fileMenu.addAction(exitAction)
+        fileMenu.addAction(openFileAction)
+        fileMenu.addAction(openMapperAction)
+        fileMenu.addAction(saveAsCSVAction)
+        fileMenu.addMenu(recentFilesMenu)
+
+        helpMenu = menubar.addMenu("&Help")
+        helpMenu.addAction(aboutAction)
+        self.toolbar.addAction(aboutAction)
+
+        self.cw = qtw.QWidget()
+        self.setCentralWidget(self.cw)
+
+        self.lay_main = qtw.QHBoxLayout(self.cw)
+        self.lay_splitter = qtw.QSplitter(self.cw)
+        self.lay_splitter.setOrientation(qtc.Qt.Horizontal)
+        self.lay_main.addWidget(self.lay_splitter)
+
+        self.wig_V1 = qtw.QWidget(self.lay_splitter)
+        self.lay_V1 = qtw.QVBoxLayout(self.wig_V1)
+        self.lay_splitter.addWidget(self.wig_V1)
+
+        self.wig_tree_order = qtw.QLineEdit(self.wig_V1)
+        self.lay_V1.addWidget(self.wig_tree_order)
+
+        if self.config.getKey('last_orders') is not None:
+            if DEBUG: print("[+] DEBUG setting autocomplete for orders filter from config to: {}".format(self.config.getKey('last_orders')))
+            self.completer_tree_order = qtw.QCompleter(self.config.getKey('last_orders'),self )
+        else:
+            self.completer_tree_order = qtw.QCompleter([], self)
+
+        self.completer_tree_order.setCaseSensitivity(qtc.Qt.CaseSensitive)
+        self.completer_tree_order.setModelSorting( qtw.QCompleter.CaseSensitivelySortedModel)
+        self.completer_tree_order.setFilterMode(qtc.Qt.MatchContains)
+        self.wig_tree_order.setCompleter(self.completer_tree_order)
+
+        self.wig_tree = qtw.QTreeWidget()
+        self._view_tree.setModel(self._model_tree)
+        self._view_tree.expandAll()
+
+        self.lay_V1.addWidget(self. _view_tree)
+        self._view_tree.doubleClicked.connect(self.onTreeDowbleClick)
+        self._view_tree.clicked.connect(self.onTreeItemClicked)
+
+
+        self.wig_V2 = qtw.QWidget(self.lay_splitter)
+        self.lay_V2 = qtw.QVBoxLayout(self.wig_V2)
+        self.lay_splitter.addWidget(self.wig_V2)
+
+        self.wig_table = qtw.QTableView()
+        self.lay_V2.addWidget(self.wig_table)
+
+        self.wig_table_filter = qtw.QLineEdit(self.wig_V2)
+        self.lay_V2.addWidget(self.wig_table_filter)
+
+        if self.config.getKey('last_filters') is not None:
+            if DEBUG: print("[+] DEBUG setting autocomplete for table filter from config to: {}".format(self.config.getKey('last_filters')))
+            self.completer_table_filter = qtw.QCompleter(self.config.getKey('last_filters'),self )
+        else:
+            self.completer_table_filter = qtw.QCompleter([], self)
+
+        self.completer_table_filter.setCaseSensitivity(qtc.Qt.CaseSensitive)
+        self.completer_table_filter.setModelSorting( qtw.QCompleter.CaseSensitivelySortedModel)
+        self.completer_table_filter.setFilterMode(qtc.Qt.MatchContains)
+
+        self.wig_table_filter.setCompleter(self.completer_table_filter)
+
+
+        self.wig_table.clicked.connect(self.onTreeItemClicked)
+
+
+
+
+        self.wig_table_filter.returnPressed.connect(self.onTableFilter)
+        self.wig_tree_order.returnPressed.connect(self.onTreeOrder)
+
+
+        self.lay_splitter.setStretchFactor(0, 1)
+        self.lay_splitter.setStretchFactor(1, 4)
+
+
+
+    def onTreeOrder(self):
+        self.tree_rootnode.removeRows(0,self.tree_rootnode.rowCount())
+
+        neworder = self.wig_tree_order.text().split(',')
+        idx = 0
+        for k in neworder:
+            k = k.strip()
+            neworder[idx]=k
+            idx +=1
+            if k == '':
+                continue
+            try:
+                self._model.headers.index( k )
+
+            except:
+                 self.statusBar().showMessage('[ERROR] invalid field: {}'.format( k ))
+                 return False
+
+        self.config.unshift('last_orders', self.wig_tree_order.text() )
+        self.completer_tree_order.model().setStringList(self.config.getKey('last_orders'))
+
+        myLogtree = LogTree(self._model.headers, neworder )
+        self.order = neworder
+        for log in self._model.logs:
+            myLogtree.add_log( log)
+
+
+
+
+        myLogtree.populate( self.tree_rootnode)
+
+    def onTableFilter(self):
+        if DEBUG: print(self.wig_table_filter.text())
+        self._view_table.clear_filters()
+        str_filters = self.wig_table_filter.text().split(',')
+
+        for str_filter in str_filters:
+            match = re.match('^((\s*)?(?P<key>[\w]+): ?(?P<value>.*))$', str_filter)
+            if match is not None:
+                self.statusBar().showMessage('[DONE] filter applied: {}'.format(self.wig_table_filter.text()))
+                try:
+                    self._view_table.add_filter(self._model.headers.index(match.group('key')), \
+                                               qtc.QRegExp(match.group('value'), qtc.Qt.CaseInsensitive))
+                    self.config.unshift('last_filters', self.wig_table_filter.text() )
+                    self.completer_table_filter.model().setStringList(self.config.getKey('last_filters'))
+                except ValueError:
+                    if DEBUG: print("List does not contain value")
+                    self.statusBar().showMessage('[ERROR] filter not Valid: {}'.format(self.wig_table_filter.text()))
+
+
+    def onTreeItemClicked(self, val):
+        dataout =  self.dataMapper.getKey( re.sub(r' \[\d+\]', '', val.data()) )
+        self.statusBar().showMessage(dataout)
+
+
+    def onTreeDowbleClick(self, val):
+
+        parent = val.parent()
+        item = val
+        strings= [  ]
+        while item != parent:
+            strings.insert(0, re.sub(r' \[\d+\]', '', item.data(qtc.Qt.DisplayRole)) )
+            item = parent
+            parent = parent.parent()
+
+        tfilter = ''
+        for i in range( len(strings )):
+            if tfilter != '':
+                tfilter += ", "
+            tfilter += self.order[i] + ": " + strings[i]
+        if DEBUG: print( "[+] DEBUG  table filter: {}".format  (tfilter))
+
+        self.wig_table_filter.setText(tfilter)
+        self.onTableFilter()
+
+    def openFile (self, filepath=False, format=False):
+        if DEBUG: print( "[+] DEBUG  opening file: {} wiht format {}".format(filepath, format))
+
+
+        if format != False and not format in self.log_formats:
+            print ( "[+] ERROR unknown data format: {}".format(format))
+            self.statusBar().showMessage("[+] ERROR unknown data format: {}".format(format))
+            format = False
+
+        if filepath is False:
+
+            if len(self.config.getKey('last_files'))==0:
+                filepath = qtw.QFileDialog.getOpenFileName(self, 'Open file')[0]
+            else:
+                if DEBUG : print ( "[+] DEBUG using default directory: {} to open new log file".format( os.path.dirname(self.config.getKey('last_files')[0][0]) ))
+
+                if self.config.getKey('last_files')[0][0] is not None:
+                    filepath = qtw.QFileDialog.getOpenFileName(self, 'Open file', os.path.dirname(self.config.getKey('last_files')[0][0]))[0]
+                else:
+                    filepath = qtw.QFileDialog.getOpenFileName(self, 'Open file')[0]
+
+        if filepath:
+            if format is False :
+                formatlist= list(self.log_formats.keys())
+                if self.config.getKey('last_format') in  formatlist: formatlist.remove(self.config.getKey('last_format'))
+                if format in list(self.log_formats.keys()): formatlist.insert(0,self.config.getKey('last_format'))
+                format, okPressed = qtw.QInputDialog.getItem(self, "Chose Format","Format:", tuple(formatlist), 0, False)
+                if not okPressed:
+                    return False
+
+        if filepath != '':
+            if not os.path.isfile(filepath):
+                if DEBUG: print( "[+] ERROR file: {} not found, I can not open it".format(filepath))
+
+                errormsg = qtw.QMessageBox(self)
+                errormsg.setIcon(qtw.QMessageBox.Warning)
+                errormsg.setWindowTitle('File not Found')
+                errormsg.setText("The file: {} is not found".format(filepath))
+                errormsg.show()
+                return False
+        else:
+            return False
+        if DEBUG: print ("[+] DEBUG adding file: {}  to last_files in config".format(filepath))
+        self.config.unshift('last_files', [ filepath, format] )
+
+        if DEBUG: print ("[+] DEBUG adding format: {}  to last_format in config".format(format))
+        self.config.updateKey('last_format', format)
+
+        self.setWindowTitle('floger::pg [{}] {}'.format(format, filepath))
+
+
+
+        self.wig_table_filter.setText(self.default_table_filter[format])
+        self.wig_tree_order.setText(self.default_tree_order[format])
+
+        self._model = LogTableModel(self.log_formats[format], self.log_headers[format], self.mapped_headers[format])
+        self._model.setDataMaper(self.dataMapper)
+
+
+
+        if DEBUG: print ("[+] Reading log file: {} with format: {}".format(filepath, format))
+        if format == 'csv':
+            with open(filepath) as f:
+                csvreader=csv.reader(f)
+                self.headers=next(csvreader)
+                default_order=''
+                default_filter=''
+                for h in self.headers:
+                    if default_order != '':
+                        default_order +=', '
+                        default_filter += ', '
+                    default_order += h
+                    default_filter += h + ": "
+                self.wig_table_filter.setText(default_filter)
+                self.wig_tree_order.setText(default_order)
+                self._model.headers=self.headers
+                self._model.setData( list(csvreader) )
+        else:
+            with open(filepath, "r") as f:
+                line = f.readline()
+                nline = 1
+                while line:
+                    self.statusBar().showMessage("[reading] {:>10}".format(nline))
+                    try:
+                        self._model.addLine(line)
+                    except Exception as e:
+                        print("\n[-] [ERROR] at file line={}: {}".format(nline, e.args[0]))
+                    nline += 1
+                    line = f.readline()
+
+            self.statusBar().showMessage("[reading]{:>10} lines [DONE]".format(nline - 1))
+
+        f.close()
+
+        self._view_table = filterProxyModel()
+        self._view_table.setSourceModel(self._model)
+
+        self.wig_table.setModel(self._view_table)
+
+        self.wig_table.setSortingEnabled(True)
+
+        self.onTreeOrder()
+        self.wig_table.resizeColumnsToContents()
+        return True
+
+
+
+    def openMapper(self):
+        if self.config.getKey('mapper_file_path') is not None:
+            filepath = qtw.QFileDialog.getOpenFileName(self, 'Open csv Mapper file', os.path.dirname(self.config.getKey('mapper_file_path') ) )[0]
+        else:
+            filepath = qtw.QFileDialog.getOpenFileName(self, 'Open csv Mapper file',  )[0]
+
+        if filepath != '':
+            self.dataMapper = DataMapper(self.config.getKey('mapper_file_path'))
+            self.config.updateKey('mapper_file_path', filepath)
+            if self._model is not None:
+                self._model.setDataMaper(self.dataMapper)
+
+    def  saveAsCSV(self):
+        if self._model is not None:
+            filepath = qtw.QFileDialog.getSaveFileName(self, 'Save File')
+            self._model.saveAsCSV(filepath)
+        else:
+            errormsg = qtw.QMessageBox(self)
+            errormsg.setIcon(qtw.QMessageBox.Warning)
+            errormsg.setWindowTitle('Error')
+            errormsg.setText("I can not save nothing")
+            errormsg.show()
+
+
+
+
+    def showAbout(self):
+        text = '<center>' \
+               '<img src="'  + os.path.join( appimages, 'floger_long.png') +'" alt="floger::pg">' \
+               '<p>Version 0.1.0<br/>' \
+               'floger::pg is the Previous Generation Firewall LOG viewER<br>' \
+               'powered by Human correlation<br><br>' \
+               'Copyright &copy; 2020 Daniel San Miguel &lt;dani@downby.net&gt;</a></p><br>' \
+               '</center>' \
+               'This program is free software; you can redistribute it and/or modify<br/>' \
+               'it under the terms of the GNU General Public License as published by<br/>' \
+               'the Free Software Foundation; either version 3 of the License, or<br/>' \
+               '(at your option) any later version.<br/>' \
+               '<br/>' \
+               'This program is distributed in the hope that it will be useful,<br/>' \
+               'but WITHOUT ANY WARRANTY; without even the implied warranty of<br/>' \
+               'MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.<br/>' \
+               'See the   GNU General Public License for more details.<br/>' \
+               '<br/>' \
+               'You should have received a copy of the GNU General Public License<br/>' \
+               'along with this program; if not, write to the Free Software<br/>' \
+               'Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA<br/>'
+
+        qtw.QMessageBox.about(None, "About floger::pg Firewall log viewer", text)
+
+
+
+
+class DataMapper():
+    def __init__(self, file=None):
+        if file is not None and file != '':
+            with open(file, mode='r') as csvfile:
+                reader = csv.reader(csvfile, delimiter=';', quotechar='"')
+                self.data = {rows[0]:rows[1] for rows in reader}
+            with open(file, mode='r') as csvfile:
+                reader = csv.reader(csvfile, delimiter=';', quotechar='"')
+                self.rdata = { rows[1]:rows[0] for rows in reader }
+        else:
+            self.data = {}
+            self.rdata = {}
+
+
+    def getValue(self, key):
+        if key in self.data:
+            return self.data[key]
+        else:
+            return key
+    def getKey(self, value):
+        if value in self.rdata:
+            return self.rdata[value]
+        else:
+            return value
+
+    def getData(self):
+        return self.data
+
+
+class FlogerConfig():
+    def __init__(self,cfg_file_path):
+        self.cfg_file_path= os.path.expanduser(cfg_file_path)
+        self.openCfgFile()
+
+
+    def openCfgFile(self):
+        dir_path = os.path.dirname(self.cfg_file_path)
+        print (dir_path)
+        self.config = None
+        if DEBUG: print("[+] DEBUG opening config file: {}".format(self.cfg_file_path))
+
+        if os.path.isfile(dir_path):
+            print( "[-] ERROR My config file directory {} is used by other file, please remove it".format(dir_path))
+        if not (os.path.isdir(dir_path)):
+            if DEBUG: print("[+] DEBUG config dir: {} not found, creating it.".format(dir_path))
+            os.makedirs(dir_path)
+        if not os.path.isfile(self.cfg_file_path):
+            print("[+] DEBUG config file: {} not found, creating a new default configuration.".format(dir_path))
+            self.newCfg()
+        else:
+            print("[+] DEBUG config file: {} found, opening it.".format(dir_path))
+            self.config = json.load(open(self.cfg_file_path))
+
+
+    def newCfg(self):
+        self.config = { 'config_version': 1,
+                        'last_format':  '',
+                        'debug': False,
+                        'reopen_last_file': True,
+                        'number_of_items': 15,
+                        'last_files':   [],
+                        'last_filters': [],
+                        'last_orders':  [],
+                        'mapper_file_path': ''
+                        }
+        self.writeCfg()
+
+    def unshift(self, key, value):
+        if key in self.config.keys():
+            self.config[key].insert(0,value)
+            while len( self.config[key]) > self.config['number_of_items']:
+                self.config[key].pop(self.config['number_of_items'])
+            self.config[key] = self._removeDuplicates(self.config[key])
+            self.writeCfg()
+        else:
+            print ( "[+] ERROR Unknown key {} for config group for value {}".format(key, value))
+
+    def updateKey(self,key, value):
+        if key in self.config.keys():
+            self.config[key] = value
+            self.writeCfg()
+        else:
+            print ( "[+] ERROR Unknown key {} for config value {}".format(key, value))
+
+    def getKey(self, key):
+        if key in self.config:
+            if self.config[key] == '':
+                return None
+            else:
+                return self.config[key]
+        else:
+            return None
+
+
+    def writeCfg(self):
+        try:
+            with open(self.cfg_file_path, 'w') as outfile:
+                json.dump(self.config, outfile,indent=3, sort_keys=False )
+        except IOError:
+            print ( "[+] ERROR I can not write the config file {}".format(self.cfg_file_path))
+
+    def _removeDuplicates(self,list):
+        outlist = []
+        for i in list:
+            if i not in outlist:
+                outlist.append(i)
+        return outlist
+
+
+
+
+
+if __name__ == "__main__":
+
+    DEBUG = False
+
+    apppath = os.path.dirname(os.path.abspath(__file__))
+    appimages = os.path.join(apppath, '..', 'bitmaps')
+
+    argparser = argparse.ArgumentParser(prog="floger",
+                                        description="The Previous Generation Firewall Log Analizer powered by human correlation")
+
+    argparser.add_argument("-l", "--log", help="log file to be processed")
+    argparser.add_argument("-f", "--format", help="log format to be processed")
+    args = argparser.parse_args()
+
+    app = qtw.QApplication(sys.argv)
+    window = MainWindow()
+
+    print("[+] reading arguments")
+
+    if args.log and args.format:
+        print("[+] selected log format: {}".format(args.format))
+        print("[+] reading log file {}".format(args.log))
+        window.openFile(args.log, args.format )
+
+    window.showMaximized()
+    window.show()
+
+    sys.exit(app.exec_())
