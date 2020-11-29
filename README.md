@@ -8,10 +8,11 @@ the  main philosophy of floger is not to avoid doing what needs to be  done, but
 
 With floger you can apply filters to your firewall logs and aggregate in a tree, adding information of the number of event by group, and apply quick filters with a double click in the branches of the tree
 
+![floger scren shot](https://github.com/ioxxoi/floger/blob/main/bitmaps/screenshot.png?raw=true)
+
 floger is in the preliminary version 0.1.0 but new features are coming
 
-
-##Log formats
+## Log formats
 
 Currently the next format are supported:
  - iptables-fwb: the iptables logs using the rule comment of fwbuilder ( RULE [number] -- [ACTION] )
