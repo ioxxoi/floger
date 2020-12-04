@@ -91,9 +91,9 @@ class LogTableModel ( qtc.QAbstractTableModel):
         if role == qtc.Qt.DisplayRole:
             return data
         if role == qtc.Qt.ForegroundRole:
-            if data  in [ 'DENY', 'REJECT', 'drop', 'deny','reject']:
+            if data  in [ 'DENY', 'REJECT', 'drop', 'deny','reject', 'block']:
                 return qtg.QBrush( qtc.Qt.red)
-            elif data in [ 'ACCEPT', 'accept']:
+            elif data in [ 'ACCEPT', 'accept', 'pass']:
                 return qtg.QBrush(qtc.Qt.green)
             else:
                 return qtg.QBrush(qtc.Qt.blue)
@@ -192,7 +192,8 @@ class MainWindow(qtw.QMainWindow):
         'iptables-fwb': '^(?P<date>\S+\s\S+)\s+(?P<time>\S+)\s(?P<host>\S+)\s+(?P<process>[^:\[\]]+)(\[(?P<pid>\S+)\])?:(\s(\[(?P<ktime>\d+\.\d+)\]))?(\s+RULE\s+(?P<rule>\d+)\s+--\s+(?P<action>\w+))?(\s+IN=(?P<in>\S*))?(\s+OUT=(?P<out>\S*))(\s+MAC=(?P<srcmac>\S*))?(\s+SRC=(?P<src>\S+))?(\s+DST=(?P<dst>\S+))?(\s+LEN=(?P<len>\d+))?(\s+TOS=(?P<tos>\S+))?(\s+PREC=(?P<prec>\S+))?(\s+TTL=(?P<ttl>\d+))?(\s+ID=(?P<id>\d+))?(\s+(?P<frag>\S+))?(\s+PROTO=(?P<proto>\S+))?(\s+SPT=(?P<spt>\d+))?(\s+DPT=(?P<dpt>\d+))?(\s+LEN=(?P<len2>\d+))?(\s+WINDOW=(?P<window>\d+))?(\s+RES=(?P<res>\S+))?(\s+(?P<flags>\w+))?(\s+URGP=(?P<urgp>\d+))?',
         'sophos-utm9': '(?P<date>\S+)\s+(?P<host>\S+)\s+(?P<process>\S+)\[(?P<pid>\d+)\]:\s+id=\"(?P<id>\d+)\"\s+severity=\"(?P<severity>\S+)\"\s+sys=\"(?P<sys>\S+)\"\s+sub=\"(?P<sub>\S+)\"\s+name=\"(?P<name>.*)\"\s+action=\"(?P<action>\S+)\"\s+fwrule=\"(?P<rule>\d+)\"\s+initf=\"(?P<in>\S+)\"\s+(outitf=\"(?P<outitf>\S+)\"\s+)?srcmac=\"(?P<srcmac>\S+)\"\s+dstmac=\"(?P<dstmac>\S+)\"\s+srcip=\"(?P<src>\S+)\"\s+dstip=\"(?P<dst>\S+)\"\s+proto=\"(?P<proto>\S+)\"\s+length=\"(?P<length>\S+)\"\s+tos=\"(?P<tos>\S+)\"\s+prec=\"(?P<prec>\S+)\"\s+ttl=\"(?P<ttl>\S+)\"\s+srcport=\"(?P<spt>\S+)\"\s+dstport=\"(?P<dpt>\S+)\"(\s+tcpflags=\"(?P<tcpflags>\S+)\")?',
         'syslog': '^(?P<month>\S+)\s+(?P<day>\S+)\s+(?P<time>\S+)\s(?P<host>\S+)\s+(?P<process>[^:\[\]]+)(\[(?P<pid>\S+)\])?:\s+(?P<msg>.*)$',
-        'csv': 'csv-parser'
+        'csv': 'csv-parser',
+        'stormshield': '^id=(?P<id>\S+)\s+time="(?P<date>\S+)\s+(?P<time>\S+)"\s+fw="(?P<host>\S+)"\stz=(?P<tz>\S+)\s+startime="(?P<startime>\S+\s\S+)"\s+pri=(?P<pri>\S+)\s+confid=(?P<confid>\S+)\s+slotlevel=(?P<slotlevel>\S+)\s+ruleid=(?P<rule>\S+)\s+rulename="(?P<rulename>\S+)"\s+srcif="(?P<in>\S+)"\s+srcifname="(?P<inname>\S+)"\s+ipproto=(?P<proto>\S+)\s+(dstif=(?P<dstif>\S+)\s+)?(dstifname=(?P<dstifname>\S+)\s+)?(icmptype=(?P<icmptype>\S+)\s+)?(icmpcode=(?P<icmpcode>\S+)\s+)?proto=(?P<l7proto>\S+)\s+src=(?P<src>\S+)\s+(srcport=(?P<spt>\S+)\s+)?(srcportname=(?P<sptname>\S+)\s+)?(srcname=(?P<srcname>\S+)\s+)?srcmac=(?P<srcmac>\S+)\s+dst=(?P<dst>\S+)\s+(dstport=(?P<dpt>\S+)\s+)?(dstportname=(?P<dptname>\S+)\s+)?(dstname=(?P<dstname>\S+)\s+)?ipv=(?P<ipv>\S+)\s+sent=(?P<sent>\S+)\s+rcvd=(?P<rcvd>\S+)\s+duration=(?P<duration>\S+)\s+action=(?P<action>\S+)$'
     }
     #global names used to use the same filters and groups:
     #    [ 'date', 'time', 'host', 'rule', 'action', 'in', 'out', 'srcmac', 'src', 'm_src', 'dst', 'm_dst', 'proto', 'spt', 'dpt', ]
@@ -204,22 +205,29 @@ class MainWindow(qtw.QMainWindow):
                         'proto', 'spt', 'dpt', 'srcmac', 'dstmac', 'severity', 'sys', 'sub', 'name',
                          'length', 'tos', 'prec', 'ttl', 'tcpflags', 'process', 'pid', 'id'],
         'syslog': ['month', 'day', 'time', 'host', 'process', 'pid', 'msg'],
-        'csv': ['csv']
+        'csv': ['csv'],
+        'stormshield': ['date', 'time', 'host', 'rule', 'rulename', 'action', 'src', 'm_src', 'dst', 'm_dst', 'in',
+                        'inname', 'dstname', 'proto','spt', 'sptname','dpt', 'dptname', 'l7proto',   'srcmac',
+                        'tz', 'startime', 'pri', 'confid', 'slotlevel', 'ipv', 'sent', 'rcvd', 'duration', 'id' ],
                    }
     mapped_headers = { 'iptables-fwb': ['src', 'dst'],
                        'sophos-utm9': ['src', 'dst'],
                        'syslog':  [],
-                       'csv': []}
+                       'csv': [],
+                       'stormshield': ['src', 'dst']
+                       }
     default_table_filter = { 'iptables-fwb': 'action: , src: , dst: , dpt:, rule:, proto:',
                              'sophos-utm9': 'src: , dst: , proto: , dpt: , action: ',
                              'syslog': 'month: , day: , time: , host: , process: , pid: , msg:',
-                             'csv': 'Write: , Your: , Filter: '
+                             'csv': 'Write: , Your: , Filter: ',
+                             'stormshield': 'action: , src: , dst: , dpt:, rule:, proto:'
     }
     default_tree_order = {
         'iptables-fwb': 'action, rule, proto, dpt, src, dst, proto',
         'sophos-utm9': 'action, rule, proto, dpt, src, dst, proto',
         'syslog': 'host, month, day, process, pid',
         'csv': 'Write, your, order',
+        'stormshield': 'action, rule, proto, dpt, src, dst, proto'
     }
     config_file_path = os.path.join( os.path.expanduser("~"), '.config' , 'floger', 'floger.conf')
 
