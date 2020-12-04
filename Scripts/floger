@@ -482,8 +482,9 @@ class MainWindow(qtw.QMainWindow):
         if filepath:
             if format is False :
                 formatlist= list(self.log_formats.keys())
-                if self.config.getKey('last_format') in  formatlist: formatlist.remove(self.config.getKey('last_format'))
-                if format in list(self.log_formats.keys()): formatlist.insert(0,self.config.getKey('last_format'))
+                if self.config.getKey('last_format') in  formatlist:
+                    formatlist.remove(self.config.getKey('last_format'))
+                    formatlist.insert(0,self.config.getKey('last_format'))
                 format, okPressed = qtw.QInputDialog.getItem(self, "Chose Format","Format:", tuple(formatlist), 0, False)
                 if not okPressed:
                     return False
