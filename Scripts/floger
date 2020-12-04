@@ -207,9 +207,10 @@ class MainWindow(qtw.QMainWindow):
         'syslog': ['month', 'day', 'time', 'host', 'process', 'pid', 'msg'],
         'csv': ['csv'],
         'stormshield': ['date', 'time', 'host', 'rule', 'rulename', 'action', 'src', 'm_src', 'dst', 'm_dst', 'in',
-                        'inname', 'dstname', 'proto','spt', 'sptname','dpt', 'dptname', 'l7proto',   'srcmac',
-                        'tz', 'startime', 'pri', 'confid', 'slotlevel', 'ipv', 'sent', 'rcvd', 'duration', 'id' ],
-                   }
+                        'inname', 'dstname', 'proto','spt', 'sptname','dpt', 'srcname', 'dptname', 'l7proto',   'srcmac',
+                        'tz', 'startime', 'pri', 'confid', 'slotlevel', 'ipv', 'sent', 'rcvd', 'duration', 'id',
+                        'dstif', 'dstifname',  'icmptype' , 'icmpcode']
+    }
     mapped_headers = { 'iptables-fwb': ['src', 'dst'],
                        'sophos-utm9': ['src', 'dst'],
                        'syslog':  [],
