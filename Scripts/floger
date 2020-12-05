@@ -193,7 +193,8 @@ class MainWindow(qtw.QMainWindow):
         'sophos-utm9': '(?P<date>\S+)\s+(?P<host>\S+)\s+(?P<process>\S+)\[(?P<pid>\d+)\]:\s+id=\"(?P<id>\d+)\"\s+severity=\"(?P<severity>\S+)\"\s+sys=\"(?P<sys>\S+)\"\s+sub=\"(?P<sub>\S+)\"\s+name=\"(?P<name>.*)\"\s+action=\"(?P<action>\S+)\"\s+fwrule=\"(?P<rule>\d+)\"\s+initf=\"(?P<in>\S+)\"\s+(outitf=\"(?P<outitf>\S+)\"\s+)?srcmac=\"(?P<srcmac>\S+)\"\s+dstmac=\"(?P<dstmac>\S+)\"\s+srcip=\"(?P<src>\S+)\"\s+dstip=\"(?P<dst>\S+)\"\s+proto=\"(?P<proto>\S+)\"\s+length=\"(?P<length>\S+)\"\s+tos=\"(?P<tos>\S+)\"\s+prec=\"(?P<prec>\S+)\"\s+ttl=\"(?P<ttl>\S+)\"\s+srcport=\"(?P<spt>\S+)\"\s+dstport=\"(?P<dpt>\S+)\"(\s+tcpflags=\"(?P<tcpflags>\S+)\")?',
         'syslog': '^(?P<month>\S+)\s+(?P<day>\S+)\s+(?P<time>\S+)\s(?P<host>\S+)\s+(?P<process>[^:\[\]]+)(\[(?P<pid>\S+)\])?:\s+(?P<msg>.*)$',
         'csv': 'csv-parser',
-        'stormshield': '^id=(?P<id>\S+)\s+time="(?P<date>\S+)\s+(?P<time>\S+)"\s+fw="(?P<host>\S+)"\stz=(?P<tz>\S+)\s+startime="(?P<startime>\S+\s\S+)"\s+pri=(?P<pri>\S+)\s+confid=(?P<confid>\S+)\s+slotlevel=(?P<slotlevel>\S+)\s+ruleid=(?P<rule>\S+)\s+rulename="(?P<rulename>\S+)"\s+srcif="(?P<in>\S+)"\s+srcifname="(?P<inname>\S+)"\s+ipproto=(?P<proto>\S+)\s+(dstif=(?P<dstif>\S+)\s+)?(dstifname=(?P<dstifname>\S+)\s+)?(icmptype=(?P<icmptype>\S+)\s+)?(icmpcode=(?P<icmpcode>\S+)\s+)?proto=(?P<l7proto>\S+)\s+src=(?P<src>\S+)\s+(srcport=(?P<spt>\S+)\s+)?(srcportname=(?P<sptname>\S+)\s+)?(srcname=(?P<srcname>\S+)\s+)?srcmac=(?P<srcmac>\S+)\s+dst=(?P<dst>\S+)\s+(dstport=(?P<dpt>\S+)\s+)?(dstportname=(?P<dptname>\S+)\s+)?(dstname=(?P<dstname>\S+)\s+)?ipv=(?P<ipv>\S+)\s+sent=(?P<sent>\S+)\s+rcvd=(?P<rcvd>\S+)\s+duration=(?P<duration>\S+)\s+action=(?P<action>\S+)$'
+        'stormshield': '^id=(?P<id>\S+)\s+time="(?P<date>\S+)\s+(?P<time>\S+)"\s+fw="(?P<host>\S+)"\stz=(?P<tz>\S+)\s+startime="(?P<startime>\S+\s\S+)"\s+pri=(?P<pri>\S+)\s+confid=(?P<confid>\S+)\s+slotlevel=(?P<slotlevel>\S+)\s+ruleid=(?P<rule>\S+)\s+rulename="(?P<rulename>\S+)"\s+srcif="(?P<in>\S+)"\s+srcifname="(?P<inname>\S+)"\s+ipproto=(?P<proto>\S+)\s+(dstif=(?P<dstif>\S+)\s+)?(dstifname=(?P<dstifname>\S+)\s+)?(icmptype=(?P<icmptype>\S+)\s+)?(icmpcode=(?P<icmpcode>\S+)\s+)?proto=(?P<l7proto>\S+)\s+src=(?P<src>\S+)\s+(srcport=(?P<spt>\S+)\s+)?(srcportname=(?P<sptname>\S+)\s+)?(srcname=(?P<srcname>\S+)\s+)?srcmac=(?P<srcmac>\S+)\s+dst=(?P<dst>\S+)\s+(dstport=(?P<dpt>\S+)\s+)?(dstportname=(?P<dptname>\S+)\s+)?(dstname=(?P<dstname>\S+)\s+)?ipv=(?P<ipv>\S+)\s+sent=(?P<sent>\S+)\s+rcvd=(?P<rcvd>\S+)\s+duration=(?P<duration>\S+)\s+action=(?P<action>\S+)$',
+        'pfsense': '^(?P<date>\S+\s+\S+)\s+(?P<time>\S+)\s(?P<host>\S+)\s+(?P<process>[^:\[\]]+)(\[(?P<pid>\S+)\])?:\s+(?P<rule>[^,]*),(?P<subrule>[^,]*),(?P<anchor>[^,]*),(?P<tracker>[^,]*),(?P<in>[^,]*),(?P<reason>[^,]*),(?P<action>[^,]*),(?P<direction>[^,]*),((?P<ipv>[\d]*),(?P<tos>[^,]*),,(?P<ecn>[^,]*),(?P<ttl>[^,]*),(?P<id>[^,]*),(?P<offset>[^,]*),(?P<protoid>[^,]*),(?P<proto>[^,]*),(?P<len>[^,]*),(?P<src>[^,]*),(?P<dst>[^,]*),(?P<spt>[^,]*),(?P<dpt>[^,]*),(?P<datalen>[^,]*))'
     }
     #global names used to use the same filters and groups:
     #    [ 'date', 'time', 'host', 'rule', 'action', 'in', 'out', 'srcmac', 'src', 'm_src', 'dst', 'm_dst', 'proto', 'spt', 'dpt', ]
@@ -209,26 +210,34 @@ class MainWindow(qtw.QMainWindow):
         'stormshield': ['date', 'time', 'host', 'rule', 'rulename', 'action', 'src', 'm_src', 'dst', 'm_dst', 'in',
                         'inname', 'dstname', 'proto','spt', 'sptname','dpt', 'srcname', 'dptname', 'l7proto',   'srcmac',
                         'tz', 'startime', 'pri', 'confid', 'slotlevel', 'ipv', 'sent', 'rcvd', 'duration', 'id',
-                        'dstif', 'dstifname',  'icmptype' , 'icmpcode']
+                        'dstif', 'dstifname',  'icmptype' , 'icmpcode'],
+        'pfsense': ['date', 'time', 'host', 'rule', 'subrule', 'action', 'direction', 'proto','src', 'm_src', 'dst',
+                    'm_dst', 'spt', 'dpt', 'in', 'ipv', 'tos', 'ecn', 'ttl', 'id', 'offset', 'protoid', 'len',
+                    'anchor', 'tracker', 'reason',  'datalen', 'process', 'pid',]
     }
     mapped_headers = { 'iptables-fwb': ['src', 'dst'],
                        'sophos-utm9': ['src', 'dst'],
                        'syslog':  [],
                        'csv': [],
-                       'stormshield': ['src', 'dst']
+                       'stormshield': ['src', 'dst'],
+                       'pfsense': ['src', 'dst']
+
                        }
     default_table_filter = { 'iptables-fwb': 'action: , src: , dst: , dpt:, rule:, proto:',
                              'sophos-utm9': 'src: , dst: , proto: , dpt: , action: ',
                              'syslog': 'month: , day: , time: , host: , process: , pid: , msg:',
                              'csv': 'Write: , Your: , Filter: ',
-                             'stormshield': 'action: , src: , dst: , dpt:, rule:, proto:'
+                             'stormshield': 'action: , src: , dst: , dpt:, rule:, proto:',
+                             'pfsense': 'action: , src: , dst: , dpt:, rule:, proto:'
+
     }
     default_tree_order = {
         'iptables-fwb': 'action, rule, proto, dpt, src, dst, proto',
         'sophos-utm9': 'action, rule, proto, dpt, src, dst, proto',
         'syslog': 'host, month, day, process, pid',
         'csv': 'Write, your, order',
-        'stormshield': 'action, rule, proto, dpt, src, dst, proto'
+        'stormshield': 'action, rule, proto, dpt, src, dst, proto',
+        'pfsense': 'action, rule, proto, dpt, src, dst, proto'
     }
     config_file_path = os.path.join( os.path.expanduser("~"), '.config' , 'floger', 'floger.conf')
 
@@ -554,7 +563,11 @@ class MainWindow(qtw.QMainWindow):
                     except Exception as e:
                         print("\n[-] [ERROR] at file line={}: {}".format(nline, e.args[0]))
                     nline += 1
-                    line = f.readline()
+                    try:
+                        line = f.readline()
+                    except Exception as e:
+                        print ("\n[+] [ERROR] at file line={}: {} I can not read this line, it is a text file?".format(nline, e.args[0]))
+
 
             self.statusBar().showMessage("[reading]{:>10} lines [DONE]".format(nline - 1))
 
