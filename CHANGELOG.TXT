@@ -1,0 +1,20 @@
+===========================================================================
+=========================== floger devel version ==========================
+===========================================================================
+
+===== 2020/12/05 =====
+* Added basic support for pfsense firewall logs
+
+===== 202/12/04 =====
+* Added support for Stormshield firewall logs
+* Reorder the table fields to put first the more relevant
+* Resolve bug: last log format is missing in the format list selection
+* change the name of the field to be the same in the different log format
+  and allow to reuse the different filters.
+
+===========================================================================
+============================== floger v0.1.0 ==============================
+===========================================================================
+
+===== 2020/11/29  =====
+initial  commit for v 0.1.0
