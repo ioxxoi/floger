@@ -14,7 +14,7 @@ floger is in the preliminary version 0.1.0 but new features are coming
 
 ## install
 
-Last code are in githup, dowload it, uncompres and execute Scripts/floger
+Last code are in github, dowload it, uncompres and execute Scripts/floger
 you ned:
 - python 3
 - PyQt5
