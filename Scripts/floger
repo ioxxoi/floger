@@ -187,6 +187,40 @@ class filterProxyModel ( qtc.QSortFilterProxyModel ):
         return True
 
 
+class LogTreeView( qtw.QTreeView):
+    def keyPressEvent(self, event):
+        super().keyPressEvent(event)
+        data=''
+        if event.key() == qtc.Qt.Key_C and (event.modifiers() & qtc.Qt.ControlModifier):
+            for i in self.selectedIndexes():
+                print("row: {}, col: {}".format( i.row(), i.column()))
+                print(i.data(qtc.Qt.DisplayRole))
+                if data != '':
+                    data += '\n'
+                data += i.data(qtc.Qt.DisplayRole)
+
+            qtg.QGuiApplication.clipboard().setText(data)
+
+
+
+class LogTableView( qtw.QTableView ):
+    def keyPressEvent(self, event):
+        super().keyPressEvent(event)
+        data=''
+        row=0
+        if event.key() == qtc.Qt.Key_C and (event.modifiers() & qtc.Qt.ControlModifier):
+            for i in self.selectedIndexes():
+                if data != '':
+                    if row == i.row():
+                        data += "\t"
+                    else:
+                        data += "\n"
+                data += i.data(qtc.Qt.DisplayRole)
+                row = i.row()
+
+            qtg.QGuiApplication.clipboard().setText(data)
+
+
 class MainWindow(qtw.QMainWindow):
     log_formats = {
         'iptables-fwb': '^(?P<date>\S+\s\S+)\s+(?P<time>\S+)\s(?P<host>\S+)\s+(?P<process>[^:\[\]]+)(\[(?P<pid>\S+)\])?:(\s(\[(?P<ktime>\d+\.\d+)\]))?(\s+RULE\s+(?P<rule>\d+)\s+--\s+(?P<action>\w+))?(\s+IN=(?P<in>\S*))?(\s+OUT=(?P<out>\S*))(\s+MAC=(?P<srcmac>\S*))?(\s+SRC=(?P<src>\S+))?(\s+DST=(?P<dst>\S+))?(\s+LEN=(?P<len>\d+))?(\s+TOS=(?P<tos>\S+))?(\s+PREC=(?P<prec>\S+))?(\s+TTL=(?P<ttl>\d+))?(\s+ID=(?P<id>\d+))?(\s+(?P<frag>\S+))?(\s+PROTO=(?P<proto>\S+))?(\s+SPT=(?P<spt>\d+))?(\s+DPT=(?P<dpt>\d+))?(\s+LEN=(?P<len2>\d+))?(\s+WINDOW=(?P<window>\d+))?(\s+RES=(?P<res>\S+))?(\s+(?P<flags>\w+))?(\s+URGP=(?P<urgp>\d+))?',
@@ -256,8 +290,8 @@ class MainWindow(qtw.QMainWindow):
             self.dataMapper = DataMapper(self.config.getKey('mapper_file_path'))
 
         # Tree
-        self._view_tree = qtw.QTreeView()
-
+        #self._view_tree = qtw.QTreeView()
+        self._view_tree = LogTreeView()
         self._view_tree.setSelectionMode(qtw.QAbstractItemView.ExtendedSelection)
 
         self._view_tree.setHeaderHidden(True)
@@ -366,7 +400,8 @@ class MainWindow(qtw.QMainWindow):
         self.lay_V2 = qtw.QVBoxLayout(self.wig_V2)
         self.lay_splitter.addWidget(self.wig_V2)
 
-        self.wig_table = qtw.QTableView()
+        self.wig_table = LogTableView()
+
         self.lay_V2.addWidget(self.wig_table)
 
         self.wig_table_filter = qtw.QLineEdit(self.wig_V2)
@@ -644,10 +679,33 @@ class DataMapper():
         if file is not None and os.path.isfile(file):
             with open(file, mode='r') as csvfile:
                 reader = csv.reader(csvfile, delimiter=';', quotechar='"')
-                self.data = {rows[0]:rows[1] for rows in reader}
+                try:
+                    self.data = {rows[0]:rows[1] for rows in reader}
+                except Exception as e:
+                    print("\n[-] [ERROR] reading mapping file {}: {}".format(file, e.args[0]))
+                    errormsg = qtw.QMessageBox()
+                    errormsg.setIcon(qtw.QMessageBox.Critical)
+                    errormsg.setWindowTitle('Error')
+                    errormsg.setText(" Error reading headers of mapping file: <br><br>{}<br><br>{}<br><br>Use the format: [ip;name-and-or-data]".format(file, e.args[0]))
+                    errormsg.exec()
+                    print ("hola")
+                    self.data = {}
+                    self.rdata = {}
+                    return
             with open(file, mode='r') as csvfile:
-                reader = csv.reader(csvfile, delimiter=';', quotechar='"')
-                self.rdata = { rows[1]:rows[0] for rows in reader }
+                try:
+                    reader = csv.reader(csvfile, delimiter=';', quotechar='"')
+                    self.rdata = { rows[1]:rows[0] for rows in reader }
+                except Exception as e:
+                    print("\n[+] [ERROR] reading mapping file {}: {}".format(file, e.args[0]))
+                    errormsg = qtw.QMessageBox()
+                    errormsg.setIcon(qtw.QMessageBox.Critical)
+                    errormsg.setWindowTitle('Error')
+                    errormsg.setText("Error reading mapping file<br><br>{}<br><br>{}<br><br>use the format [ip;name-and-or-data]".format(file, e.args[0]))
+                    errormsg.exec()
+                    self.data = {}
+                    self.rdata = {}
+                    return
         else:
             self.data = {}
             self.rdata = {}
