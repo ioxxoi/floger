@@ -193,14 +193,12 @@ class LogTreeView( qtw.QTreeView):
         data=''
         if event.key() == qtc.Qt.Key_C and (event.modifiers() & qtc.Qt.ControlModifier):
             for i in self.selectedIndexes():
-                print("row: {}, col: {}".format( i.row(), i.column()))
                 print(i.data(qtc.Qt.DisplayRole))
                 if data != '':
                     data += '\n'
                 data += i.data(qtc.Qt.DisplayRole)
 
             qtg.QGuiApplication.clipboard().setText(data)
-
 
 
 class LogTableView( qtw.QTableView ):
@@ -672,8 +670,6 @@ class MainWindow(qtw.QMainWindow):
         qtw.QMessageBox.about(None, "About floger::pg Firewall log viewer", text)
 
 
-
-
 class DataMapper():
     def __init__(self, file=None):
         if file is not None and os.path.isfile(file):
@@ -804,9 +800,6 @@ class FlogerConfig():
             if i not in outlist:
                 outlist.append(i)
         return outlist
-
-
-
 
 
 if __name__ == "__main__":
