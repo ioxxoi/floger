@@ -569,9 +569,19 @@ class MainWindow(qtw.QMainWindow):
 
 
         if DEBUG: print ("[+] Reading log file: {} with format: {}".format(filepath, format))
+        delimiter=','
         if format == 'csv':
+            with open (filepath) as f:
+                header_line = f.readline()
+                sniffer = csv.Sniffer()
+                dialect = sniffer.sniff(header_line)
+                delimiter = dialect.delimiter
+                DEBUG: print ("[+] Detected CSV delimiter: {} for file: {}".format(delimiter, filepath))
+                print (dialect.delimiter)
+                f.close()
+
             with open(filepath) as f:
-                csvreader=csv.reader(f)
+                csvreader=csv.reader(f, delimiter=delimiter)
                 self.headers=next(csvreader)
                 default_order=''
                 default_filter=''
