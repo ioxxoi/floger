@@ -658,7 +658,7 @@ class MainWindow(qtw.QMainWindow):
     def showAbout(self):
         text = '<center>' \
                '<img src="'  + os.path.join( appimages, 'floger_long.png') +'" alt="floger::pg">' \
-               '<p>Version 0.1.0<br/>' \
+               '<p>Version 0.1.1<br/>' \
                'floger::pg is the Previous Generation Firewall LOG viewER<br>' \
                'powered by Human correlation<br><br>' \
                'Copyright &copy; 2020 Daniel San Miguel &lt;dani@downby.net&gt;</a></p><br>' \
