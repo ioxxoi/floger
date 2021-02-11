@@ -10,6 +10,8 @@ import argparse
 import re
 import json
 
+VERSION='0.1.1.2'
+
 
 class LogTree():
     def __init__(self, headers, order):
@@ -24,7 +26,7 @@ class LogTree():
         self.order = order
         for tag in self.order:
             self.headers_idx[tag] = self.headers.index(tag)
-        if DEBUG: print ("[+] DEBUG precessed headers_idx:" , self.headers_idx)
+        if globals()['DEBUG']: print ("[+] DEBUG precessed headers_idx:" , self.headers_idx)
 
 
     def setOrder(self, order):
@@ -375,7 +377,7 @@ class MainWindow(qtw.QMainWindow):
         self.lay_V1.addWidget(self.wig_tree_order)
 
         if self.config.getKey('last_orders') is not None:
-            if DEBUG: print("[+] DEBUG setting autocomplete for orders filter from config to: {}".format(self.config.getKey('last_orders')))
+            if globals()['DEBUG']: print("[+] DEBUG setting autocomplete for orders filter from config to: {}".format(self.config.getKey('last_orders')))
             self.completer_tree_order = qtw.QCompleter(self.config.getKey('last_orders'),self )
         else:
             self.completer_tree_order = qtw.QCompleter([], self)
@@ -406,7 +408,7 @@ class MainWindow(qtw.QMainWindow):
         self.lay_V2.addWidget(self.wig_table_filter)
 
         if self.config.getKey('last_filters') is not None:
-            if DEBUG: print("[+] DEBUG setting autocomplete for table filter from config to: {}".format(self.config.getKey('last_filters')))
+            if globals()['DEBUG']: print("[+] DEBUG setting autocomplete for table filter from config to: {}".format(self.config.getKey('last_filters')))
             self.completer_table_filter = qtw.QCompleter(self.config.getKey('last_filters'),self )
         else:
             self.completer_table_filter = qtw.QCompleter([], self)
@@ -464,7 +466,7 @@ class MainWindow(qtw.QMainWindow):
         myLogtree.populate( self.tree_rootnode)
 
     def onTableFilter(self):
-        if DEBUG: print(self.wig_table_filter.text())
+        if globals()['DEBUG']: print(self.wig_table_filter.text())
         self._view_table.clear_filters()
         str_filters = self.wig_table_filter.text().split(',')
 
@@ -478,7 +480,7 @@ class MainWindow(qtw.QMainWindow):
                     self.config.unshift('last_filters', self.wig_table_filter.text() )
                     self.completer_table_filter.model().setStringList(self.config.getKey('last_filters'))
                 except ValueError:
-                    if DEBUG: print("List does not contain value")
+                    if globals()['DEBUG']: print("List does not contain value")
                     self.statusBar().showMessage('[ERROR] filter not Valid: {}'.format(self.wig_table_filter.text()))
 
 
@@ -502,13 +504,13 @@ class MainWindow(qtw.QMainWindow):
             if tfilter != '':
                 tfilter += ", "
             tfilter += self.order[i] + ": " + strings[i]
-        if DEBUG: print( "[+] DEBUG  table filter: {}".format  (tfilter))
+        if globals()['DEBUG']: print( "[+] DEBUG  table filter: {}".format  (tfilter))
 
         self.wig_table_filter.setText(tfilter)
         self.onTableFilter()
 
     def openFile (self, filepath=False, format=False):
-        if DEBUG: print( "[+] DEBUG  opening file: {} wiht format {}".format(filepath, format))
+        if globals()['DEBUG']: print( "[+] DEBUG  opening file: {} wiht format {}".format(filepath, format))
 
 
         if format != False and not format in self.log_formats:
@@ -521,7 +523,7 @@ class MainWindow(qtw.QMainWindow):
             if len(self.config.getKey('last_files'))==0:
                 filepath = qtw.QFileDialog.getOpenFileName(self, 'Open file')[0]
             else:
-                if DEBUG : print ( "[+] DEBUG using default directory: {} to open new log file".format( os.path.dirname(self.config.getKey('last_files')[0][0]) ))
+                if globals()['DEBUG']: print ( "[+] DEBUG using default directory: {} to open new log file".format( os.path.dirname(self.config.getKey('last_files')[0][0]) ))
 
                 if self.config.getKey('last_files')[0][0] is not None:
                     filepath = qtw.QFileDialog.getOpenFileName(self, 'Open file', os.path.dirname(self.config.getKey('last_files')[0][0]))[0]
@@ -540,7 +542,7 @@ class MainWindow(qtw.QMainWindow):
 
         if filepath != '':
             if not os.path.isfile(filepath):
-                if DEBUG: print( "[+] ERROR file: {} not found, I can not open it".format(filepath))
+                if globals()['DEBUG']: print( "[+] ERROR file: {} not found, I can not open it".format(filepath))
 
                 errormsg = qtw.QMessageBox(self)
                 errormsg.setIcon(qtw.QMessageBox.Warning)
@@ -550,10 +552,10 @@ class MainWindow(qtw.QMainWindow):
                 return False
         else:
             return False
-        if DEBUG: print ("[+] DEBUG adding file: {}  to last_files in config".format(filepath))
+        if globals()['DEBUG']: print ("[+] DEBUG adding file: {}  to last_files in config".format(filepath))
         self.config.unshift('last_files', [ filepath, format] )
 
-        if DEBUG: print ("[+] DEBUG adding format: {}  to last_format in config".format(format))
+        if globals()['DEBUG']: print ("[+] DEBUG adding format: {}  to last_format in config".format(format))
         self.config.updateKey('last_format', format)
 
         self.setWindowTitle('floger::pg [{}] {}'.format(format, filepath))
@@ -568,7 +570,7 @@ class MainWindow(qtw.QMainWindow):
 
 
 
-        if DEBUG: print ("[+] Reading log file: {} with format: {}".format(filepath, format))
+        if globals()['DEBUG']: print ("[+] Reading log file: {} with format: {}".format(filepath, format))
         delimiter=','
         if format == 'csv':
             with open (filepath) as f:
@@ -658,7 +660,7 @@ class MainWindow(qtw.QMainWindow):
     def showAbout(self):
         text = '<center>' \
                '<img src="'  + os.path.join( appimages, 'floger_long.png') +'" alt="floger::pg">' \
-               '<p>Version 0.1.1<br/>' \
+               '<p>Version ' + globals()['VERSION'] + '<br/>' \
                'floger::pg is the Previous Generation Firewall LOG viewER<br>' \
                'powered by Human correlation<br><br>' \
                'Copyright &copy; 2020 Daniel San Miguel &lt;dani@downby.net&gt;</a></p><br>' \
@@ -742,12 +744,12 @@ class FlogerConfig():
         dir_path = os.path.dirname(self.cfg_file_path)
         print (dir_path)
         self.config = None
-        if DEBUG: print("[+] DEBUG opening config file: {}".format(self.cfg_file_path))
+        if globals()['DEBUG']: print("[+] DEBUG opening config file: {}".format(self.cfg_file_path))
 
         if os.path.isfile(dir_path):
             print( "[-] ERROR My config file directory {} is used by other file, please remove it".format(dir_path))
         if not (os.path.isdir(dir_path)):
-            if DEBUG: print("[+] DEBUG config dir: {} not found, creating it.".format(dir_path))
+            if globals()['DEBUG']: print("[+] DEBUG config dir: {} not found, creating it.".format(dir_path))
             os.makedirs(dir_path)
         if not os.path.isfile(self.cfg_file_path):
             print("[+] DEBUG config file: {} not found, creating a new default configuration.".format(dir_path))
