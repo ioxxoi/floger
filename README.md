@@ -25,7 +25,18 @@ If you prefer the last estable version, use pip:
 ~~~
 pip install floger
 ~~~
-
+### Windows install
+To use **floger** in Windows, you need to follow the next steps:
+1. install python, [download python for windows from python.org](https://www.python.org/downloads/windows/)
+2. Do not forget to include in the installed modules the pip tool
+3. Also is recommended to associate the .py extension to the Python interpreter
+4. execute the cmd console and execute insite it: <br>
+   `pip install  floger`<br>
+5. create a file floger.bat in your desktop  ( or any other palce) with the next content<br>
+   `DRV:\My\python\Path\python DRV:\My\python\Path\Scripts\floger`<br>
+6. execute **floger.bat**
+7. Enjoy!!!
+   
 ## Log formats
 
 Currently the next format are supported:
